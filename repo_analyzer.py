@@ -152,7 +152,11 @@ class RepoAnalyzer:
         """Analyze code statistics and complexity.
 
         Returns:
-            Dictionary containing code-related metrics
+            Dictionary containing code-related metrics including:
+            - File statistics
+            - Language distribution
+            - Complexity metrics
+            - Complexity trends over time
         """
         from radon.complexity import cc_visit
         from radon.raw import analyze
@@ -169,6 +173,11 @@ class RepoAnalyzer:
                 "moderate": 0,    # 11-20
                 "complex": 0,     # 21-30
                 "very_complex": 0 # 31+
+            },
+            "complexity_trends": {
+                "by_date": {},
+                "by_author": {},
+                "trend_direction": "stable"
             }
         }
         
