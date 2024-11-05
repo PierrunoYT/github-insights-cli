@@ -4,6 +4,7 @@
 - Python 3.8+ (Primary language)
 - Click (CLI framework)
 - GitPython (Git repository interaction)
+- PyGithub (GitHub API integration)
 - Pandas (Data processing)
 - Matplotlib/Plotly (Data visualization)
 

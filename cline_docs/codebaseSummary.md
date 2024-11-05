@@ -35,8 +35,10 @@ github-insights-cli/
 
 ### Repository Analyzer (repo_analyzer.py)
 - Git repository interaction and analysis
+- GitHub API integration for enhanced metrics
 - Commit history extraction
 - Code statistics calculation
+- Repository metrics (stars, forks, issues)
 - Branch and contributor analysis
 - Timezone-aware datetime handling
 
@@ -62,12 +64,16 @@ github-insights-cli/
 ## External Dependencies
 - click: Command-line interface framework
 - gitpython: Git repository interaction
+- PyGithub: GitHub API integration
 - pandas: Data analysis and processing
 - matplotlib: Static plot generation
 - plotly: Interactive visualizations
 - rich: Terminal formatting and progress display
 
 ## Recent Changes
+- Added GitHub API integration (commit 9afb149)
+- Enhanced repository metrics with GitHub-specific data
+- Added support for stars, forks, and issues tracking
 - Restructured project from Python package to standalone CLI tool
 - Moved source files to root directory
 - Updated import paths in test files
