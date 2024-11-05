@@ -3,6 +3,7 @@ Command-line interface for GitHub Insights CLI.
 Handles user input and coordinates analysis workflow.
 """
 
+import os
 import click
 from rich.console import Console
 from rich.progress import Progress
@@ -67,14 +68,18 @@ def clone(url: str, target_path: str):
 @click.option('--since', '-s', help='Analysis start date (YYYY-MM-DD)')
 @click.option('--until', '-u', help='Analysis end date (YYYY-MM-DD)')
 @click.option('--output', '-o', help='Output format (text/json/html)', default='text')
-def analyze(repo_path: str, since: Optional[str], until: Optional[str], output: str):
+@click.option('--github', '-g', is_flag=True, help='Enable GitHub API integration')
+def analyze(repo_path: str, since: Optional[str], until: Optional[str], output: str, github: bool):
     """Analyze a Git repository and generate insights."""
     try:
         with Progress() as progress:
             # Initialize components
-            analyzer = RepoAnalyzer(repo_path)
+            analyzer = RepoAnalyzer(repo_path, use_github=github)
             processor = DataProcessor()
             visualizer = Visualizer()
+
+            if github and not os.getenv('GITHUB_TOKEN'):
+                console.print("[bold red]Warning:[/] GITHUB_TOKEN not set. GitHub-specific metrics will be limited.")
 
             # Analysis steps
             task1 = progress.add_task("[green]Analyzing repository...", total=100)
