@@ -13,6 +13,7 @@ Find the project on GitHub: [https://github.com/PierrunoYT/github-insights-cli](
   - Branch statistics
   - Code contribution tracking
   - Development patterns
+  - GitHub-specific metrics (stars, forks, issues)
 
 - **Code Metrics**
   - Language distribution
@@ -36,6 +37,7 @@ Find the project on GitHub: [https://github.com/PierrunoYT/github-insights-cli](
 
 - Python 3.8+
 - Git
+- GitHub API Token (for GitHub-specific features)
 
 ## Installation
 
@@ -46,6 +48,10 @@ cd github-insights-cli
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Set up GitHub API token
+export GITHUB_TOKEN=your_token_here  # Linux/macOS
+set GITHUB_TOKEN=your_token_here     # Windows
 ```
 
 ## Usage
@@ -53,8 +59,11 @@ pip install -r requirements.txt
 ### Basic Repository Analysis
 
 ```bash
-# Analyze the current repository
+# Analyze the current repository (local Git only)
 python main.py analyze .
+
+# Analyze with GitHub API integration
+python main.py analyze . --github
 
 # Analyze a specific repository
 python main.py analyze /path/to/repo
@@ -87,6 +96,9 @@ Total Commits: 1,234
 Total Contributors: 12
 Active Contributors: 8
 Primary Language: Python
+GitHub Stars: 45
+Open Issues: 7
+Forks: 12
 
 == Commit Activity ==
 Daily Average: 5.2
