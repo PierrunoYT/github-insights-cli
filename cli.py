@@ -7,6 +7,7 @@ import click
 from rich.console import Console
 from rich.progress import Progress
 from typing import Optional, List
+from pathlib import Path
 
 from repo_analyzer import RepoAnalyzer
 from data_processor import DataProcessor
@@ -19,6 +20,47 @@ console = Console()
 def main():
     """GitHub Insights CLI - Analyze your Git repositories with powerful insights."""
     pass
+
+@main.command()
+@click.argument('url')
+@click.argument('target_path', type=click.Path(exists=False))
+def clone(url: str, target_path: str):
+    """Clone a Git repository and analyze it.
+    
+    URL: Git repository URL to clone
+    TARGET_PATH: Local path to clone into
+    """
+    try:
+        target = Path(target_path)
+        if target.exists():
+            console.print(f"[bold red]Error:[/] Target path already exists: {target_path}")
+            raise click.Abort()
+
+        with Progress() as progress:
+            task = progress.add_task("[green]Cloning repository...", total=100)
+            
+            # Clone and analyze
+            analyzer = RepoAnalyzer.clone(url, target_path)
+            progress.update(task, advance=50)
+            
+            processor = DataProcessor()
+            visualizer = Visualizer()
+            
+            raw_data = analyzer.analyze()
+            progress.update(task, advance=25)
+            
+            processed_data = processor.process(raw_data)
+            report = visualizer.generate_report(processed_data)
+            progress.update(task, advance=25)
+
+        console.print("\n[bold green]Repository cloned and analyzed successfully![/]")
+        console.print(f"[blue]Location:[/] {target_path}")
+        console.print("\n[bold]Analysis Results:[/]")
+        console.print(report)
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {str(e)}")
+        raise click.Abort()
 
 @main.command()
 @click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))

@@ -124,3 +124,29 @@ def test_analyze_empty_repo(tmp_path):
     assert metrics["commit_stats"]["total_commits"] == 0
     assert metrics["contributor_stats"]["total_contributors"] == 0
     assert metrics["code_stats"]["total_files"] == 0
+import pytest
+from pathlib import Path
+import shutil
+import tempfile
+from repo_analyzer import RepoAnalyzer
+
+class TestRepoAnalyzer:
+    @pytest.fixture
+    def temp_dir(self):
+        # Create temporary directory
+        temp_path = tempfile.mkdtemp()
+        yield temp_path
+        # Cleanup after test
+        shutil.rmtree(temp_path)
+
+    def test_clone_invalid_url(self, temp_dir):
+        with pytest.raises(ValueError, match="Failed to clone repository"):
+            RepoAnalyzer.clone("https://invalid-url/repo.git", temp_dir)
+
+    def test_clone_existing_target(self, temp_dir):
+        # Create a file in the target path
+        target = Path(temp_dir) / "existing"
+        target.mkdir()
+        
+        with pytest.raises(ValueError):
+            RepoAnalyzer.clone("https://github.com/some/repo.git", str(target))

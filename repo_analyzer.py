@@ -2,7 +2,7 @@
 Repository analyzer module for extracting Git repository metrics and data.
 """
 
-from git import Repo, InvalidGitRepositoryError
+from git import Repo, InvalidGitRepositoryError, GitCommandError
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +10,26 @@ import pandas as pd
 
 class RepoAnalyzer:
     """Analyzes Git repositories and extracts various metrics."""
+
+    @classmethod
+    def clone(cls, url: str, target_path: str) -> 'RepoAnalyzer':
+        """Clone a repository from URL and return an analyzer instance.
+
+        Args:
+            url: Git repository URL to clone
+            target_path: Local path to clone into
+        
+        Returns:
+            RepoAnalyzer instance for the cloned repository
+            
+        Raises:
+            ValueError: If cloning fails or target path already exists
+        """
+        try:
+            Repo.clone_from(url, target_path)
+            return cls(target_path)
+        except GitCommandError as e:
+            raise ValueError(f"Failed to clone repository: {str(e)}")
 
     def __init__(self, repo_path: str):
         """Initialize the repository analyzer.
