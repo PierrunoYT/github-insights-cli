@@ -175,6 +175,35 @@ def complexity(repo_path: str, threshold: int, output: str):
 
 @main.command()
 @click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option('--output-dir', '-o', type=click.Path(), default='reports',
+              help='Directory to save visualization files')
+def export_viz(repo_path: str, output_dir: str):
+    """Export repository visualizations to files."""
+    try:
+        with Progress() as progress:
+            task = progress.add_task("[green]Generating visualizations...", total=100)
+            
+            analyzer = RepoAnalyzer(repo_path)
+            processor = DataProcessor()
+            visualizer = Visualizer()
+            
+            raw_data = analyzer.analyze()
+            progress.update(task, advance=40)
+            
+            processed_data = processor.process(raw_data)
+            progress.update(task, advance=30)
+            
+            visualizer.save_plots(processed_data, output_dir)
+            progress.update(task, advance=30)
+
+        console.print(f"\n[bold green]Visualizations exported to {output_dir}![/]")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {str(e)}")
+        raise click.Abort()
+
+@main.command()
+@click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option('--metric', '-m', help='Specific metric to track', multiple=True)
 def watch(repo_path: str, metric: List[str]):
     """Watch repository metrics in real-time."""
