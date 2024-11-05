@@ -138,6 +138,43 @@ def contributions(repo_path: str, since: Optional[str], until: Optional[str], ou
 
 @main.command()
 @click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option('--threshold', '-t', type=int, default=10,
+              help='Complexity threshold for highlighting complex functions')
+@click.option('--output', '-o', help='Output format (text/json/html)', default='text')
+def complexity(repo_path: str, threshold: int, output: str):
+    """Analyze code complexity metrics of the repository."""
+    try:
+        with Progress() as progress:
+            task = progress.add_task("[green]Analyzing code complexity...", total=100)
+            
+            analyzer = RepoAnalyzer(repo_path)
+            raw_data = analyzer.analyze()
+            progress.update(task, advance=50)
+            
+            # Extract complexity metrics
+            code_stats = raw_data.get("code_stats", {})
+            complexity_data = {
+                "complexity_metrics": code_stats.get("complexity_metrics", {}),
+                "file_stats": {
+                    path: stats for path, stats in code_stats.get("file_stats", {}).items()
+                    if path.endswith('.py')  # Only include Python files
+                }
+            }
+            
+            # Generate report
+            visualizer = Visualizer()
+            report = visualizer.generate_complexity_report(complexity_data, threshold, format=output)
+            progress.update(task, advance=50)
+
+        console.print("\n[bold green]Complexity Analysis Complete![/]")
+        console.print(report)
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {str(e)}")
+        raise click.Abort()
+
+@main.command()
+@click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option('--metric', '-m', help='Specific metric to track', multiple=True)
 def watch(repo_path: str, metric: List[str]):
     """Watch repository metrics in real-time."""

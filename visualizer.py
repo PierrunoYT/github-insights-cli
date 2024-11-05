@@ -579,6 +579,187 @@ class Visualizer:
         
         return fig
 
+    def generate_complexity_report(self, data: Dict[str, Any], threshold: int = 10, format: str = "text") -> str:
+        """Generate a code complexity report.
+        
+        Args:
+            data: Complexity metrics data
+            threshold: Complexity threshold for highlighting
+            format: Output format (text/json/html)
+            
+        Returns:
+            Formatted report string
+        """
+        if format == "json":
+            return self._generate_json_report(data)
+        elif format == "html":
+            return self._generate_html_complexity_report(data, threshold)
+        else:
+            return self._generate_text_complexity_report(data, threshold)
+
+    def _generate_text_complexity_report(self, data: Dict[str, Any], threshold: int) -> str:
+        """Generate a text-based complexity report."""
+        metrics = data.get("complexity_metrics", {})
+        
+        lines = [
+            "=== Code Complexity Analysis ===\n",
+            f"Average Complexity: {metrics.get('average_complexity', 0):.2f}",
+            f"Total Complexity: {metrics.get('total_complexity', 0)}",
+            
+            "\n=== Complexity Distribution ===",
+            f"Simple (1-10): {metrics.get('complexity_distribution', {}).get('simple', 0)}",
+            f"Moderate (11-20): {metrics.get('complexity_distribution', {}).get('moderate', 0)}",
+            f"Complex (21-30): {metrics.get('complexity_distribution', {}).get('complex', 0)}",
+            f"Very Complex (31+): {metrics.get('complexity_distribution', {}).get('very_complex', 0)}",
+            
+            "\n=== Complex Functions ==="
+        ]
+        
+        # Add complex functions
+        complex_funcs = sorted(
+            metrics.get("complex_functions", []),
+            key=lambda x: x["complexity"],
+            reverse=True
+        )
+        
+        for func in complex_funcs:
+            if func["complexity"] >= threshold:
+                lines.append(
+                    f"\n{func['file']}:{func['line_number']} - {func['name']}"
+                    f"\n  Complexity: {func['complexity']}"
+                )
+        
+        # Add maintainability index
+        lines.extend([
+            "\n=== Maintainability Index ===",
+            "Files requiring attention (MI < 65):"
+        ])
+        
+        mi_scores = metrics.get("maintainability_index", {})
+        for file, score in sorted(mi_scores.items()):
+            if score < 65:
+                lines.append(f"  {file}: {score:.1f}")
+        
+        return "\n".join(lines)
+
+    def _generate_html_complexity_report(self, data: Dict[str, Any], threshold: int) -> str:
+        """Generate an HTML complexity report with visualizations."""
+        metrics = data.get("complexity_metrics", {})
+        
+        # Create complexity distribution plot
+        dist_data = metrics.get("complexity_distribution", {})
+        dist_fig = go.Figure(data=[
+            go.Bar(
+                x=["Simple", "Moderate", "Complex", "Very Complex"],
+                y=[dist_data.get("simple", 0), dist_data.get("moderate", 0),
+                   dist_data.get("complex", 0), dist_data.get("very_complex", 0)]
+            )
+        ])
+        dist_fig.update_layout(title="Complexity Distribution")
+        
+        # Generate complex functions table
+        complex_funcs = sorted(
+            metrics.get("complex_functions", []),
+            key=lambda x: x["complexity"],
+            reverse=True
+        )
+        complex_funcs_html = "<table class='complex-functions'>"
+        complex_funcs_html += "<tr><th>Function</th><th>File</th><th>Line</th><th>Complexity</th></tr>"
+        for func in complex_funcs:
+            if func["complexity"] >= threshold:
+                complex_funcs_html += f"""
+                    <tr>
+                        <td>{func['name']}</td>
+                        <td>{func['file']}</td>
+                        <td>{func['line_number']}</td>
+                        <td>{func['complexity']}</td>
+                    </tr>
+                """
+        complex_funcs_html += "</table>"
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Code Complexity Analysis</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background-color: #f5f5f5;
+                }}
+                .container {{
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background-color: white;
+                    padding: 20px;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                .section {{
+                    margin-bottom: 30px;
+                }}
+                .stat-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+                .stat-box {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    text-align: center;
+                }}
+                .complex-functions {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                }}
+                .complex-functions th, .complex-functions td {{
+                    padding: 8px;
+                    text-align: left;
+                    border-bottom: 1px solid #ddd;
+                }}
+                .complex-functions th {{
+                    background-color: #f8f9fa;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Code Complexity Analysis</h1>
+                
+                <div class="section">
+                    <h2>Overview</h2>
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <h3>Average Complexity</h3>
+                            <div>{metrics.get('average_complexity', 0):.2f}</div>
+                        </div>
+                        <div class="stat-box">
+                            <h3>Total Complexity</h3>
+                            <div>{metrics.get('total_complexity', 0)}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Complexity Distribution</h2>
+                    {dist_fig.to_html(full_html=False, include_plotlyjs='cdn')}
+                </div>
+
+                <div class="section">
+                    <h2>Complex Functions</h2>
+                    {complex_funcs_html}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+
     def _generate_recommendations_html(self, recommendations: List[Dict[str, Any]]) -> str:
         """Generate HTML for recommendations section."""
         if not recommendations:

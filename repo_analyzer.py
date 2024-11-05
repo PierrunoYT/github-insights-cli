@@ -154,22 +154,102 @@ class RepoAnalyzer:
         Returns:
             Dictionary containing code-related metrics
         """
+        from radon.complexity import cc_visit
+        from radon.raw import analyze
+        from radon.metrics import mi_visit
+
         file_stats = {}
+        complexity_stats = {
+            "average_complexity": 0,
+            "complex_functions": [],
+            "maintainability_index": {},
+            "total_complexity": 0,
+            "complexity_distribution": {
+                "simple": 0,      # 1-10
+                "moderate": 0,    # 11-20
+                "complex": 0,     # 21-30
+                "very_complex": 0 # 31+
+            }
+        }
+        
         try:
+            total_complexity = 0
+            num_files = 0
+            
             for blob in self.repo.head.commit.tree.traverse():
                 if blob.type == "blob":
-                    file_stats[blob.path] = {
+                    path = blob.path
+                    content = blob.data_stream.read().decode('utf-8', errors='ignore')
+                    extension = Path(path).suffix
+                    
+                    file_stats[path] = {
                         "size": blob.size,
-                        "lines": len(blob.data_stream.read().decode().splitlines()),
-                        "extension": Path(blob.path).suffix
+                        "lines": len(content.splitlines()),
+                        "extension": extension
                     }
+                    
+                    # Only analyze Python files for complexity
+                    if extension == '.py':
+                        try:
+                            # Calculate cyclomatic complexity
+                            complexity_metrics = cc_visit(content)
+                            file_complexity = sum(metric.complexity for metric in complexity_metrics)
+                            total_complexity += file_complexity
+                            
+                            # Analyze complex functions
+                            complex_funcs = [
+                                {
+                                    "name": metric.name,
+                                    "complexity": metric.complexity,
+                                    "line_number": metric.lineno,
+                                    "file": path
+                                }
+                                for metric in complexity_metrics
+                                if metric.complexity > 10  # threshold for complex functions
+                            ]
+                            complexity_stats["complex_functions"].extend(complex_funcs)
+                            
+                            # Calculate maintainability index
+                            mi_score = mi_visit(content, multi=True)
+                            complexity_stats["maintainability_index"][path] = mi_score
+                            
+                            # Update complexity distribution
+                            for metric in complexity_metrics:
+                                if metric.complexity <= 10:
+                                    complexity_stats["complexity_distribution"]["simple"] += 1
+                                elif metric.complexity <= 20:
+                                    complexity_stats["complexity_distribution"]["moderate"] += 1
+                                elif metric.complexity <= 30:
+                                    complexity_stats["complexity_distribution"]["complex"] += 1
+                                else:
+                                    complexity_stats["complexity_distribution"]["very_complex"] += 1
+                            
+                            num_files += 1
+                            
+                            # Add complexity metrics to file stats
+                            file_stats[path]["complexity"] = {
+                                "total": file_complexity,
+                                "average": file_complexity / len(complexity_metrics) if complexity_metrics else 0,
+                                "functions": len(complexity_metrics),
+                                "maintainability_index": mi_score
+                            }
+                            
+                        except Exception as e:
+                            file_stats[path]["complexity_error"] = str(e)
+                    
+            # Calculate average complexity
+            if num_files > 0:
+                complexity_stats["average_complexity"] = total_complexity / num_files
+            complexity_stats["total_complexity"] = total_complexity
+            
         except (ValueError, AttributeError):  # Handle empty repositories
             pass
 
         return {
             "total_files": len(file_stats),
             "file_stats": file_stats,
-            "language_distribution": self._get_language_distribution(file_stats)
+            "language_distribution": self._get_language_distribution(file_stats),
+            "complexity_metrics": complexity_stats
         }
 
     def _analyze_branches(self) -> Dict[str, Any]:
