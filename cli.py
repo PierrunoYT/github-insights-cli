@@ -99,6 +99,45 @@ def analyze(repo_path: str, since: Optional[str], until: Optional[str], output: 
 
 @main.command()
 @click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option('--since', '-s', help='Analysis start date (YYYY-MM-DD)')
+@click.option('--until', '-u', help='Analysis end date (YYYY-MM-DD)')
+@click.option('--output', '-o', help='Output format (text/json/html)', default='text')
+def contributions(repo_path: str, since: Optional[str], until: Optional[str], output: str):
+    """Generate detailed contribution insights for the repository."""
+    try:
+        with Progress() as progress:
+            task = progress.add_task("[green]Analyzing contributions...", total=100)
+            
+            analyzer = RepoAnalyzer(repo_path)
+            processor = DataProcessor()
+            visualizer = Visualizer()
+            
+            # Get raw data with focus on contributions
+            raw_data = analyzer.analyze(since=since, until=until)
+            progress.update(task, advance=40)
+            
+            # Process with focus on contribution metrics
+            processed_data = processor.process(raw_data)
+            contribution_data = {
+                "contributor_stats": processed_data.get("contributor_stats", {}),
+                "commit_patterns": processed_data.get("commit_patterns", {}),
+                "collaboration_insights": processed_data.get("collaboration_insights", {})
+            }
+            progress.update(task, advance=30)
+            
+            # Generate contribution-focused report
+            report = visualizer.generate_contribution_report(contribution_data, format=output)
+            progress.update(task, advance=30)
+
+        console.print("\n[bold green]Contribution Analysis Complete![/]")
+        console.print(report)
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/] {str(e)}")
+        raise click.Abort()
+
+@main.command()
+@click.argument('repo_path', type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option('--metric', '-m', help='Specific metric to track', multiple=True)
 def watch(repo_path: str, metric: List[str]):
     """Watch repository metrics in real-time."""

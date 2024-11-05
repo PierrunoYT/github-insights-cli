@@ -343,6 +343,242 @@ class Visualizer:
                      title='Language Distribution')
         return fig
 
+    def generate_contribution_report(self, data: Dict[str, Any], format: str = "text") -> str:
+        """Generate a contribution-focused report.
+        
+        Args:
+            data: Processed contribution data
+            format: Output format (text/json/html)
+            
+        Returns:
+            Formatted report string
+        """
+        # Ensure data has required structure
+        data = self._ensure_contribution_data_structure(data)
+        
+        if format == "json":
+            return self._generate_json_report(data)
+        elif format == "html":
+            return self._generate_html_contribution_report(data)
+        else:
+            return self._generate_text_contribution_report(data)
+
+    def _ensure_contribution_data_structure(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure contribution data has all required sections."""
+        default_data = {
+            "contributor_stats": {
+                "total_contributors": 0,
+                "contributor_details": {},
+                "active_contributors": 0
+            },
+            "commit_patterns": {
+                "frequency": {"daily": 0, "weekly": 0, "monthly": 0},
+                "distribution": {"type": "unknown", "concentration": 0}
+            },
+            "collaboration_insights": {
+                "highlights": [],
+                "team_dynamics": {},
+                "review_patterns": {}
+            }
+        }
+        return self._merge_dict(default_data, data)
+
+    def _generate_text_contribution_report(self, data: Dict[str, Any]) -> str:
+        """Generate a text-based contribution report."""
+        lines = [
+            "=== Repository Contribution Analysis ===\n",
+            "== Overview ==",
+            f"Total Contributors: {data['contributor_stats']['total_contributors']}",
+            f"Active Contributors: {data['contributor_stats']['active_contributors']}",
+            
+            "\n== Contribution Patterns ==",
+            f"Daily Commits: {data['commit_patterns']['frequency']['daily']:.2f}",
+            f"Weekly Commits: {data['commit_patterns']['frequency']['weekly']:.2f}",
+            f"Monthly Commits: {data['commit_patterns']['frequency']['monthly']:.2f}",
+            f"Distribution Type: {data['commit_patterns']['distribution']['type']}",
+            
+            "\n== Top Contributors =="
+        ]
+        
+        # Add top contributors
+        contributor_details = data['contributor_stats']['contributor_details']
+        sorted_contributors = sorted(
+            contributor_details.items(),
+            key=lambda x: x[1].get('commits', 0),
+            reverse=True
+        )[:5]
+        
+        for author, details in sorted_contributors:
+            lines.extend([
+                f"\n{author}:",
+                f"  Commits: {details.get('commits', 0)}",
+                f"  Lines Added: {details.get('insertions', 0)}",
+                f"  Lines Removed: {details.get('deletions', 0)}",
+                f"  Files Modified: {len(details.get('files_touched', set()))}"
+            ])
+        
+        # Add collaboration insights
+        if data['collaboration_insights']['highlights']:
+            lines.extend([
+                "\n== Collaboration Insights ==",
+                *[f"- {insight}" for insight in data['collaboration_insights']['highlights']]
+            ])
+        
+        return "\n".join(lines)
+
+    def _generate_html_contribution_report(self, data: Dict[str, Any]) -> str:
+        """Generate an HTML contribution report with visualizations."""
+        # Create visualizations
+        contributor_dist_fig = self._create_contributor_distribution_plot(data)
+        commit_timeline_fig = self._create_commit_timeline_plot(data)
+        
+        # Generate HTML for top contributors
+        top_contributors_html = self._generate_top_contributors_html(
+            data['contributor_stats']['contributor_details']
+        )
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Repository Contribution Analysis</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background-color: #f5f5f5;
+                }}
+                .container {{
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background-color: white;
+                    padding: 20px;
+                    border-radius: 5px;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                .section {{
+                    margin-bottom: 30px;
+                }}
+                .stat-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }}
+                .stat-box {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 5px;
+                    text-align: center;
+                }}
+                .contributor-card {{
+                    background-color: #f8f9fa;
+                    padding: 15px;
+                    margin: 10px 0;
+                    border-radius: 5px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Repository Contribution Analysis</h1>
+                
+                <div class="section">
+                    <h2>Overview</h2>
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <h3>Total Contributors</h3>
+                            <div>{data['contributor_stats']['total_contributors']}</div>
+                        </div>
+                        <div class="stat-box">
+                            <h3>Active Contributors</h3>
+                            <div>{data['contributor_stats']['active_contributors']}</div>
+                        </div>
+                        <div class="stat-box">
+                            <h3>Daily Commits</h3>
+                            <div>{data['commit_patterns']['frequency']['daily']:.2f}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>Contribution Distribution</h2>
+                    {contributor_dist_fig.to_html(full_html=False, include_plotlyjs='cdn')}
+                </div>
+
+                <div class="section">
+                    <h2>Commit Timeline</h2>
+                    {commit_timeline_fig.to_html(full_html=False, include_plotlyjs='cdn')}
+                </div>
+
+                <div class="section">
+                    <h2>Top Contributors</h2>
+                    {top_contributors_html}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html
+
+    def _generate_top_contributors_html(self, contributor_details: Dict[str, Any]) -> str:
+        """Generate HTML for top contributors section."""
+        sorted_contributors = sorted(
+            contributor_details.items(),
+            key=lambda x: x[1].get('commits', 0),
+            reverse=True
+        )[:5]
+        
+        html_parts = []
+        for author, details in sorted_contributors:
+            html_parts.append(f"""
+                <div class="contributor-card">
+                    <h3>{author}</h3>
+                    <p>Commits: {details.get('commits', 0)}</p>
+                    <p>Lines Added: {details.get('insertions', 0)}</p>
+                    <p>Lines Removed: {details.get('deletions', 0)}</p>
+                    <p>Files Modified: {len(details.get('files_touched', set()))}</p>
+                </div>
+            """)
+        
+        return "\n".join(html_parts)
+
+    def _create_commit_timeline_plot(self, data: Dict[str, Any]) -> go.Figure:
+        """Create a timeline plot of commit activity."""
+        commit_patterns = data.get('commit_patterns', {})
+        activity = commit_patterns.get('activity', {})
+        
+        if not activity:
+            fig = go.Figure()
+            fig.add_annotation(
+                text="No commit activity data available",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5,
+                showarrow=False
+            )
+            return fig
+        
+        dates = list(activity.keys())
+        commits = list(activity.values())
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=commits,
+            mode='lines+markers',
+            name='Commits'
+        ))
+        
+        fig.update_layout(
+            title='Commit Activity Timeline',
+            xaxis_title='Date',
+            yaxis_title='Number of Commits',
+            showlegend=True
+        )
+        
+        return fig
+
     def _generate_recommendations_html(self, recommendations: List[Dict[str, Any]]) -> str:
         """Generate HTML for recommendations section."""
         if not recommendations:
