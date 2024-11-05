@@ -3,10 +3,12 @@ Repository analyzer module for extracting Git repository metrics and data.
 """
 
 from git import Repo, InvalidGitRepositoryError, GitCommandError
+from github import Github, GithubException
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
+import os
 
 class RepoAnalyzer:
     """Analyzes Git repositories and extracts various metrics."""
@@ -31,11 +33,12 @@ class RepoAnalyzer:
         except GitCommandError as e:
             raise ValueError(f"Failed to clone repository: {str(e)}")
 
-    def __init__(self, repo_path: str):
+    def __init__(self, repo_path: str, github_token: Optional[str] = None):
         """Initialize the repository analyzer.
 
         Args:
             repo_path: Path to the Git repository
+            github_token: GitHub API token for additional metrics
         
         Raises:
             ValueError: If the path is not a valid Git repository
@@ -45,8 +48,33 @@ class RepoAnalyzer:
             self.repo = Repo(repo_path)
             if not self.repo.git_dir:
                 raise ValueError(f"Not a valid Git repository: {self.repo_path}")
+            
+            # Initialize GitHub API client if token provided
+            self.gh = None
+            self.gh_repo = None
+            if github_token:
+                self.gh = Github(github_token)
+                self._init_github_repo()
+                
         except InvalidGitRepositoryError:
             raise ValueError(f"Not a valid Git repository: {self.repo_path}")
+
+    def _init_github_repo(self):
+        """Initialize GitHub repository connection if possible."""
+        try:
+            if not self.gh:
+                return
+                
+            # Get the remote URL
+            remote_url = next(self.repo.remotes.origin.urls)
+            
+            # Extract owner/repo from remote URL
+            parts = remote_url.split('github.com/')[-1].replace('.git', '').split('/')
+            if len(parts) >= 2:
+                owner, repo_name = parts[-2:]
+                self.gh_repo = self.gh.get_repo(f"{owner}/{repo_name}")
+        except (GithubException, AttributeError, IndexError) as e:
+            print(f"Warning: Could not initialize GitHub API: {str(e)}")
 
     def analyze(self, since: Optional[str] = None, until: Optional[str] = None) -> Dict[str, Any]:
         """Analyze the repository and collect metrics.
@@ -62,12 +90,68 @@ class RepoAnalyzer:
         since_date = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=timezone.utc) if since else None
         until_date = datetime.strptime(until, "%Y-%m-%d").replace(tzinfo=timezone.utc) if until else None
 
-        return {
+        metrics = {
             "commit_stats": self._analyze_commits(since_date, until_date),
             "contributor_stats": self._analyze_contributors(since_date, until_date),
             "code_stats": self._analyze_code(),
             "branch_stats": self._analyze_branches()
         }
+
+        # Add GitHub-specific metrics if available
+        if self.gh_repo:
+            metrics["github_stats"] = self._analyze_github_metrics(since_date, until_date)
+
+        return metrics
+
+    def _analyze_github_metrics(self, since: Optional[datetime], until: Optional[datetime]) -> Dict[str, Any]:
+        """Analyze GitHub-specific metrics.
+
+        Returns:
+            Dictionary containing GitHub-specific metrics
+        """
+        if not self.gh_repo:
+            return {}
+
+        try:
+            # Get basic repository information
+            metrics = {
+                "stars": self.gh_repo.stargazers_count,
+                "forks": self.gh_repo.forks_count,
+                "open_issues": self.gh_repo.open_issues_count,
+                "watchers": self.gh_repo.subscribers_count,
+                "pull_requests": {
+                    "open": len(list(self.gh_repo.get_pulls(state='open'))),
+                    "merged": len(list(self.gh_repo.get_pulls(state='closed', sort='updated')))
+                },
+                "issues": {
+                    "open": len(list(self.gh_repo.get_issues(state='open'))),
+                    "closed": len(list(self.gh_repo.get_issues(state='closed')))
+                }
+            }
+
+            # Get release information
+            releases = list(self.gh_repo.get_releases())
+            metrics["releases"] = {
+                "total": len(releases),
+                "latest": releases[0].tag_name if releases else None,
+                "published_at": releases[0].published_at.isoformat() if releases else None
+            }
+
+            # Get workflow information if available
+            try:
+                workflows = list(self.gh_repo.get_workflows())
+                metrics["workflows"] = {
+                    "total": len(workflows),
+                    "active": sum(1 for w in workflows if w.state == "active")
+                }
+            except GithubException:
+                metrics["workflows"] = {"total": 0, "active": 0}
+
+            return metrics
+
+        except GithubException as e:
+            print(f"Warning: Error fetching GitHub metrics: {str(e)}")
+            return {}
 
     def _analyze_commits(self, since: Optional[datetime], until: Optional[datetime]) -> Dict[str, Any]:
         """Analyze commit history and patterns.
